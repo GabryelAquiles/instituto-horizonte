@@ -3,6 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
 import SectionTitle from "../components/SectionTitle";
 import { useEnrollments, usePlans } from "../hooks/useStore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase";
 
 const shifts = ["Manhã", "Tarde", "Integral"];
 const payments = ["Mensal", "Semestral", "Anual"];
@@ -44,18 +46,33 @@ export default function Enrollment() {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setEnrollments([
-      ...enrollments,
-      {
-        id: Date.now().toString(),
+
+    try {
+      // Grava diretamente na coleção 'matriculas' do Firebase Firestore
+      await addDoc(collection(db, "matriculas"), {
         ...form,
         status: "interesse",
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    setLoading(false);
-    setSubmitted(true);
+        createdAt: serverTimestamp(),
+      });
+
+      // Atualiza também o estado local da aplicação
+      setEnrollments([
+        ...enrollments,
+        {
+          id: Date.now().toString(),
+          ...form,
+          status: "interesse",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+
+      setSubmitted(true);
+    } catch (error) {
+      console.error("Erro ao salvar matrícula no Firestore:", error);
+      alert("Houve um erro ao enviar seu formulário. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
